@@ -91,7 +91,7 @@ app.post('/api/auth/register', async (req, res) => {
             message: "phone incorrect"
         })
 
-    if (body.password.length <= 16)
+    if (body.password.length <= 1)
         return res.status(401).json({
             error: true,
             message: "password incorrect"
@@ -115,11 +115,10 @@ app.post('/api/auth/register', async (req, res) => {
     })
 
     // vérifier si l'utilisateur existe déjà
-    const userexist = await User.find({ email: body.email })
+    const userexist = await User.exists({ email: body.email })
 
     if (userexist)
         return res.status(401).json({
-            error: true,
             message: "user already exist"
         })
 
@@ -142,19 +141,32 @@ app.get('/api/user/profile', async (req, res) => {
     const body = req.body
     const token = req.cookies.token
 
+    console.log(token)
+
     if (!token) {
         return res.status(403);
     }
     // recuperer l'email de l'utilisateur depuis le token
     try {
         const data = jwt.verify(token, "mySecret");
+
         usermail = data.email;
+        console.log(usermail)
     } catch {
         return res.status(403);
     }
 
-    const user = await User.find({ email: usermail })
+    // verifier si l'email stocké en token existe
+    const userexist = await User.exists({ email: usermail })
 
+    if (!userexist)
+        return res.status(401).json({
+            error: true,
+            message: "veuillez vous reconnecter"
+        })
+
+    const user = await User.findOne({ email: usermail })
+    // afficher les infos de l'utilisateur
     return res
         .status(200).json({
             email: user.email,
@@ -181,9 +193,14 @@ app.put('/api/user/edit', async (req, res) => {
         return res.status(403);
     }
 
-    const user = await User.find({ email: usermail })
+    // verifier si l'email stocké en token existe
+    const userexist = await User.exists({ email: usermail })
 
-
+    if (!userexist)
+        return res.status(401).json({
+            error: true,
+            message: "veuillez vous reconnecter"
+        })
     // verifier le nom et prenom saisie par l'utilisateur
 
     if (body.firstname.length <= 1)
@@ -198,19 +215,21 @@ app.put('/api/user/edit', async (req, res) => {
             message: "lastname incorrect"
         })
     // changer les informations utilisateurs dans la BD
+
+    const user = await User.findOne({ email: usermail })
     filter = { email: usermail }
     update = { lastname: body.lastname, firstname: body.firstname }
-    user = user.findOneAndUpdate(filter, update, {
+    const newuser = await User.findOneAndUpdate(filter, update, {
         new: true
     });
 
     return res
         .status(201)
         .json({
-            email: user.email,
-            lastname: user.lastname,
-            firstname: user.firstname,
-            phone: user.phone,
+            email: newuser.email,
+            lastname: newuser.lastname,
+            firstname: newuser.firstname,
+            phone: newuser.phone,
             message: "Modification du compte réussie !"
         })
 
@@ -232,12 +251,18 @@ app.put('/api/user/edit-password', async (req, res) => {
         return res.status(403);
     }
 
-    const user = await User.find({ email: usermail })
+    // verifier si l'email stocké en token existe
+    const userexist = await User.exists({ email: usermail })
 
+    if (!userexist)
+        return res.status(401).json({
+            error: true,
+            message: "veuillez vous reconnecter"
+        })
 
     // verifier le password saisie par l'utilisateur
 
-    if (body.password.length <= 16)
+    if (body.password.length <= 1)
         return res.status(401).json({
             error: true,
             message: "password incorrect"
@@ -257,7 +282,9 @@ app.put('/api/user/edit-password', async (req, res) => {
     // changer les informations utilisateurs dans la BD
     filter = { email: usermail }
     update = { password: hashpassword }
-    user = user.findOneAndUpdate(filter, update, {
+
+    const user = await User.findOne({ email: usermail })
+    newuser = await User.findOneAndUpdate(filter, update, {
         new: true
     });
 
@@ -284,8 +311,14 @@ app.put('/api/user/edit-phone', async (req, res) => {
         return res.status(403);
     }
 
-    const user = await User.find({ email: usermail })
+    // verifier si l'email stocké en token existe
+    const userexist = await User.exists({ email: usermail })
 
+    if (!userexist)
+        return res.status(401).json({
+            error: true,
+            message: "veuillez vous reconnecter"
+        })
 
     // verifier le telephone saisie par l'utilisateur
 
@@ -296,9 +329,12 @@ app.put('/api/user/edit-phone', async (req, res) => {
         })
 
     // changer les informations utilisateurs dans la BD
+
+    const user = await User.findOne({ email: usermail })
     filter = { email: usermail }
     update = { phone: body.phone }
-    user = user.findOneAndUpdate(filter, update, {
+
+    const newuser = await User.findOneAndUpdate(filter, update, {
         new: true
     });
 
@@ -326,7 +362,15 @@ app.put('/api/user/edit-email', async (req, res) => {
         return res.status(403);
     }
 
-    const user = await User.find({ email: usermail })
+    // verifier si l'email stocké en token existe
+    const userexist = await User.exists({ email: usermail })
+
+    if (!userexist)
+        return res.status(401).json({
+            error: true,
+            message: "veuillez vous reconnecter"
+        })
+
 
 
     // verifier l'email saisie par l'utilisateur
@@ -338,15 +382,17 @@ app.put('/api/user/edit-email', async (req, res) => {
         })
 
     // changer les informations utilisateurs dans la BD
+
+    const user = await User.findOne({ email: usermail })
     filter = { email: usermail }
     update = { email: body.email }
-    user = user.findOneAndUpdate(filter, update, {
+    const newuser = await User.findOneAndUpdate(filter, update, {
         new: true
     });
 
-    token = await jwt.sign({ email: user.email }, 'mySecret');
+    const newtoken = await jwt.sign({ email: newuser.email }, 'mySecret');
     return res
-        .cookie("token", token, {
+        .cookie("token", newtoken, {
             httpOnly: true
         })
         .status(200).json({
@@ -370,12 +416,21 @@ app.delete('/api/user/delete', async (req, res) => {
         return res.status(403);
     }
 
+     // verifier si l'email stocké en token existe
+     const userexist = await User.exists({ email: usermail })
+
+     if (!userexist)
+         return res.status(401).json({
+             error: true,
+             message: "veuillez vous reconnecter"
+         })
+
     // chercher et supprimer l'utilisateur de la BD
-    const user = await User.findOneAndDelete({ email: usermail });
+    const newuser = await User.findOneAndDelete({ email: usermail });
 
     return res
         .status(200)
-        .clearCookie("token")
+        .clearCookie("token")  // supprimer le token stocké en cookie
         .json({
             message: "Votre profil a été supprimé ! Un email de confirmation de suppression vous a été envoyé"
         })
